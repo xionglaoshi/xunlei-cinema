@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: xunlei-cli
+Version: 0.1.0
+Summary: CLI tool for Xunlei cloud drive and VIP download acceleration
+Requires-Python: >=3.9
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: click>=8.1.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: filelock>=3.0.0

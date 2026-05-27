@@ -1,0 +1,17 @@
+README.md
+pyproject.toml
+xunlei/__init__.py
+xunlei/__main__.py
+xunlei/api.py
+xunlei/auth.py
+xunlei/cli.py
+xunlei/config.py
+xunlei/downloader.py
+xunlei/models.py
+xunlei/offline.py
+xunlei_cli.egg-info/PKG-INFO
+xunlei_cli.egg-info/SOURCES.txt
+xunlei_cli.egg-info/dependency_links.txt
+xunlei_cli.egg-info/entry_points.txt
+xunlei_cli.egg-info/requires.txt
+xunlei_cli.egg-info/top_level.txt

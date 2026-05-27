@@ -1,0 +1,2 @@
+[console_scripts]
+xunlei = xunlei.cli:main
