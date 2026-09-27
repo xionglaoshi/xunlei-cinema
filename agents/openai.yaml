@@ -1,0 +1,7 @@
+interface:
+  display_name: "迅雷家庭影院"
+  short_description: "查找并评估片源，按需保存到迅雷云盘家庭影院"
+  default_prompt: "Use $xunlei-cinema to 查找这部电影的可靠片源，并在我要求时保存到迅雷云盘家庭影院。"
+
+policy:
+  allow_implicit_invocation: true

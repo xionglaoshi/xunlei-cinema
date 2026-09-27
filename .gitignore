@@ -1,0 +1,10 @@
+var/
+vendor/xunlei-cli-src/
+vendor/pansou-src/
+__pycache__/
+*.pyc
+.DS_Store
+*.json
+*.torrent
+*.log
+*.db
