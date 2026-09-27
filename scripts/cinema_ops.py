@@ -47,7 +47,17 @@ async def resolve_folder(api, path: str, create: bool = False):
         if matches:
             parent_id = matches[0].file_id
         elif create:
-            parent_id = (await api.create_folder(name, parent_id)).file_id
+            containing_folder_id = parent_id
+            created = await api.create_folder(name, containing_folder_id)
+            parent_id = created.file_id
+            if not parent_id:
+                # Some Xunlei responses acknowledge creation without returning
+                # the new ID. Read the parent back before continuing.
+                reread = [row for row in await list_all(api, containing_folder_id)
+                          if row.kind == "drive#folder" and row.name == name]
+                if len(reread) != 1 or not reread[0].file_id:
+                    raise RuntimeError(f"Created folder cannot be resolved: {name}")
+                parent_id = reread[0].file_id
         else:
             return parent_id, parts[index:]
     return parent_id, []

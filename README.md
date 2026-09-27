@@ -1,6 +1,6 @@
 # 迅雷家庭影院 / xunlei-cinema
 
-我在电视上用迅雷 TV 版观看云盘影片，但每次找资源、分辨真假 4K、再整理到云盘目录都要重复操作。这个技能把过程交给 AI Agent：按片名搜索公开线索，比较版本与画质可信度，在用户要求保存时把选定的直接链接提交到迅雷云盘的影片目录。
+我在电视上用迅雷 TV 版观看云盘影片，但每次找资源、分辨真假 4K、再整理到云盘目录都要重复操作。这个技能把过程交给 AI Agent：按片名搜索公开线索，比较版本与画质可信度，在用户要求保存时把选定资源转存或提交离线任务到迅雷云盘的影片目录。
 
 ## 能做什么
 
@@ -38,10 +38,19 @@ var/xunlei-cli-venv/bin/python scripts/cinema_cli.py 'https://example.org/film.m
   --folder '家庭影院/星际迷航系列' --expect-name 'film.mp4'
 ```
 
-默认只预览；确认后加 `--execute` 才会创建缺失目录并提交离线任务。云盘分享需要浏览器转存，不能交给这个命令。登录时运行 `var/xunlei-cli-venv/bin/python scripts/browser_login.py`，把它输出的本机 URL 在内置浏览器打开，由用户自行输入账号和完成迅雷官方验证。
+默认只预览；确认后加 `--execute` 才会创建缺失目录并提交离线任务。迅雷云盘分享使用独立的逐文件转存命令：
+
+```sh
+var/xunlei-cli-venv/bin/python scripts/cinema_share.py 'https://pan.xunlei.com/s/分享ID?pwd=提取码'
+# 从只读清单选准确文件 ID 后预览；核对无误再加 --execute
+var/xunlei-cli-venv/bin/python scripts/cinema_share.py 'https://pan.xunlei.com/s/分享ID?pwd=提取码' \
+  --file-id '清单中的ID' --folder '家庭影院/流浪地球系列' --min-gb 10
+```
+
+分享中的正片原名若只有 `1.mkv`，可附加 `--save-as '影片英文名 (年份) - 4K.mkv'`，转存后在云盘改成可辨认的名称；文件名中的 4K 仍是来源声明。登录时运行 `var/xunlei-cli-venv/bin/python scripts/browser_login.py`，把它输出的本机 URL 在内置浏览器打开，由用户自行输入账号和完成迅雷官方验证。
 
 ## 已验证与边界
 
-在真实账号上验证了独立登录、HTTPS 开放样片的离线任务完成和目标目录读回。同名文件检查、容量明显过小的 4K 声明降权也已验证。磁力、`thunder://`、FTP、BT 种子和迅雷分享转存尚未逐类完成真实入盘验证；搜到链接不代表其可播放或画质真实。只处理你有权访问和保存的内容。
+在真实账号上验证了独立登录、HTTPS 开放样片的离线任务完成和目标目录读回，也验证了迅雷分享中单个视频的转存、重命名与目标目录读回。同名文件检查、容量明显过小的 4K 声明降权也已验证。磁力、`thunder://`、FTP 和 BT 种子尚未逐类完成真实入盘验证；搜到链接不代表其可播放或画质真实。只处理你有权访问和保存的内容。
 
 本仓库原创代码与文档按 [MIT License](LICENSE) 发布；第三方 PanSou 及独立下载的 `xunlei-cli` 各自遵循其上游条款。本项目与迅雷官方无关联。
