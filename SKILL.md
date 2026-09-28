@@ -9,7 +9,7 @@ description: 搜索电影及系列片的公开片源，比较画质与可信度�
 
 ## 找资源的固定顺序
 
-先读 `references/search-and-quality.md`，确认准确片名、年份、别名和系列中的具体影片；需要扩大搜索时查 `references/source-sites.md` 的实操站点线索。每部影片按以下顺序执行；同一阶段内可并行，跨阶段按条件递进。
+先读 `references/search-and-quality.md`，确认准确片名、年份、别名和系列中的具体影片；需要扩大搜索时读 `references/resource-strategy.md` 的兜底策略与 `references/source-sites.md` 的站点实操线索。每部影片按以下顺序执行；同一阶段内可并行，跨阶段按条件递进。
 
 1. **脚本初搜**：启动本地 PanSou，运行 `scripts/search_sources.py`。它并行查 PanSou、Bing RSS、百度，提取迅雷分享、`thunder://`、磁力、种子、常见扩展名的 HTTP/HTTPS 视频直链和公开 FTP 线索。先排除明显错片、错年份和失效链接。
 2. **网页搜索补查**：若没有匹配且可信的 4K 候选，或只有 1080p、搜索摘要、质量不明的候选，使用当前 Agent 的网页搜索工具补 Google 等搜索结果；用可读取的原页核对影片及链接附近文字。搜索工具受限时记录原因，继续下一阶段。
@@ -27,6 +27,8 @@ description: 搜索电影及系列片的公开片源，比较画质与可信度�
 ## 保存到迅雷云盘
 
 需要保存时读 `references/save-to-xunlei.md`；遇到 CLI 重新登录、验证卡住、检索或保存异常时读 `references/troubleshooting.md`。`家庭影院` 下按系列设置稳定的一级目录，如 `星球大战系列`、`星际迷航系列`、`漫威系列`；不属于任何系列的影片，直接在 `家庭影院` 下以片名建一级目录，例如 `家庭影院/阿甘正传`，不要再套 `单部电影` 等中间目录。先匹配已有目录及同片版本，再创建目录或任务，避免别名导致重复目录和重复资源。
+
+正片文件名统一为 `中文片名.英文原名.上映年份.原文件可核验技术信息.扩展名`；保留原有 2160p、BluRay、编码、音轨等信息，去掉无意义或未经证实的 `来源标称4K` 标签。云盘已有正片用 `scripts/cinema_rename.py` 清单预览、按文件 ID 改名并读回；分享转存用 `cinema_share.py --chinese --english --year`，命名细节见 `scripts/cinema_naming.py`。不把文件名中的画质声明当成实测结果。
 
 - 迅雷云盘分享链接：优先用 `scripts/cinema_share.py` 读取分享内视频清单，按准确文件 ID 逐个转存并读回目标目录；登录态或接口异常时才在分享页处理。分享中即使只有一个目录，也不要未经核对整目录转存。
 - 磁力、`thunder://`、FTP、HTTP、HTTPS 等直接链接：优先调用技能内 `scripts/cinema_cli.py`（使用独立安装的 `xunlei-cli` API），按云盘路径解析/创建目录并提交离线任务；登录不可用或接口失败时，改用网页端“添加 → 添加链接”。BT 种子文件按页面支持的上传/添加方式处理；当前未完成实测，不将其视作已验证路径。

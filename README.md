@@ -6,7 +6,9 @@
 
 - 先用 PanSou、Bing RSS、百度检索，再用 Agent 的网页搜索及浏览器自动化补查；覆盖迅雷分享、磁力、`thunder://`、种子线索、常见 HTTP/HTTPS 视频直链和公开 FTP 线索。
 - 结合片名、年份、来源页、声明分辨率、片长和文件大小给候选排序。默认优先可信的 4K/2160p，以 1080p 兜底。名称或网页声称的分辨率不等于真实视频参数。
+- 找片受阻时按 [`references/resource-strategy.md`](references/resource-strategy.md) 换别名、站点和链接类型；高产站点的实测线索见 [`references/source-sites.md`](references/source-sites.md)。
 - 使用独立的迅雷登录：系列片放在 `家庭影院/<系列名>系列`，非系列片放在 `家庭影院/<片名>`，不套中间目录。提交前预览目标并检查同名文件；任务完成后读回目录，才确认已保存。
+- 正片文件统一用中文片名、英文原名、上映年份和原有技术信息命名；去掉 `来源标称4K` 等无意义标签。
 - 账号、新设备图形验证和短信验证由用户在内置浏览器完成。登录与故障排除步骤见 [`references/troubleshooting.md`](references/troubleshooting.md)。
 
 ## 安装
@@ -44,10 +46,11 @@ var/xunlei-cli-venv/bin/python scripts/cinema_cli.py 'https://example.org/film.m
 var/xunlei-cli-venv/bin/python scripts/cinema_share.py 'https://pan.xunlei.com/s/分享ID?pwd=提取码'
 # 从只读清单选准确文件 ID 后预览；核对无误再加 --execute
 var/xunlei-cli-venv/bin/python scripts/cinema_share.py 'https://pan.xunlei.com/s/分享ID?pwd=提取码' \
-  --file-id '清单中的ID' --folder '家庭影院/流浪地球系列' --min-gb 10
+  --file-id '清单中的ID' --folder '家庭影院/流浪地球系列' --min-gb 10 \
+  --chinese '流浪地球2' --english 'The Wandering Earth II' --year 2023
 ```
 
-分享中的正片原名若只有 `1.mkv`，可附加 `--save-as '影片英文名 (年份) - 4K.mkv'`，转存后在云盘改成可辨认的名称；文件名中的 4K 仍是来源声明。登录时运行 `var/xunlei-cli-venv/bin/python scripts/browser_login.py`，把它输出的本机 URL 在内置浏览器打开，由用户自行输入账号和完成迅雷官方验证。
+已核对的中文片名、英文片名和年份会与来源文件中可用的技术信息组成规范文件名；原名为 `1.mkv` 时，应先从分享目录、片页及年份确认影片身份。已有云盘文件可用 `scripts/cinema_rename.py` 的预览、执行和回滚清单整理。登录时运行 `var/xunlei-cli-venv/bin/python scripts/browser_login.py`，把它输出的本机 URL 在内置浏览器打开，由用户自行输入账号和完成迅雷官方验证。
 
 ## 已验证与边界
 

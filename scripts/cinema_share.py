@@ -12,6 +12,7 @@ from xunlei.auth import AuthManager
 from xunlei.config import Config
 
 from cinema_ops import list_all, resolve_folder
+from cinema_naming import movie_filename
 
 BASE = "https://api-pan.xunlei.com/drive/v1"
 VIDEO_EXT = (".mkv", ".mp4", ".m2ts", ".ts", ".avi", ".mov", ".webm")
@@ -92,7 +93,14 @@ async def run(args):
             raise ValueError(f"Selected file is below {args.min_gb:g} GB")
         if not args.folder:
             raise ValueError("--folder is required when --file-id is set")
-        final_name = args.save_as or chosen["name"]
+        if args.save_as and any((args.chinese, args.english, args.year)):
+            raise ValueError("Use --save-as or all three title fields, not both")
+        if any((args.chinese, args.english, args.year)) and not all((args.chinese, args.english, args.year)):
+            raise ValueError("--chinese, --english and --year are required together")
+        if args.chinese:
+            final_name = movie_filename(chosen["name"], args.chinese, args.english, args.year)
+        else:
+            final_name = args.save_as or chosen["name"]
         if ("/" in final_name or "\\" in final_name or final_name in (".", "..")
                 or not final_name.lower().endswith(VIDEO_EXT)):
             raise ValueError("--save-as must be a single video filename")
@@ -142,6 +150,9 @@ def main():
     ap.add_argument("--folder", default="")
     ap.add_argument("--min-gb", type=float, default=0)
     ap.add_argument("--save-as", default="", help="Canonical video filename after transfer")
+    ap.add_argument("--chinese", default="", help="Verified Chinese movie title")
+    ap.add_argument("--english", default="", help="Verified English movie title")
+    ap.add_argument("--year", type=int, default=0, help="Movie release year")
     ap.add_argument("--execute", action="store_true")
     args = ap.parse_args()
     try:
