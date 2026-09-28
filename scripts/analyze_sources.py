@@ -5,8 +5,29 @@ import argparse
 import json
 import re
 import sys
+from pathlib import PurePosixPath
+from urllib.parse import unquote, urlsplit, parse_qs
 
 SIZE_RE = re.compile(r"(?i)(\d+(?:\.\d+)?)\s*(TB|GB|MB|G|M)\b")
+
+
+def container_claim(item, meta):
+    # Selected file metadata takes precedence over webpage text and other versions.
+    for value in (item.get("file_name"), item.get("name"), meta.get("file_name"), meta.get("display_name")):
+        if isinstance(value, str):
+            suffix = PurePosixPath(value.strip()).suffix.lower().lstrip(".")
+            if suffix:
+                return suffix
+    declared = str(item.get("container") or item.get("format") or "").lower().lstrip(".")
+    if declared in {"mkv", "matroska", "mp4", "avi", "mov", "m2ts", "ts", "webm"}:
+        return "mkv" if declared == "matroska" else declared
+    url = urlsplit(str(item.get("url") or ""))
+    name = (parse_qs(url.query).get("dn") or [""])[0] if url.scheme == "magnet" else unquote(url.path)
+    suffix = PurePosixPath(name).suffix.lower().lstrip(".")
+    if suffix in {"mkv", "mp4", "avi", "mov", "m2ts", "ts", "webm", "zip", "rar", "torrent"}:
+        return suffix
+    hits = set(re.findall(r"(?i)\.(mkv|mp4|avi|mov|m2ts|ts|webm)(?![\w.])", str(item.get("title") or "")))
+    return next(iter(hits)).lower() if len(hits) == 1 else None
 
 
 def size_gb(text):
@@ -40,7 +61,7 @@ def expected_ranges(hours, resolution, source_type):
 
 def analyze(item, runtime):
     meta = item.get("decoded_metadata") or {}
-    text = " ".join(str(item.get(k, "")) for k in ("title", "context", "reported_title", "url"))
+    text = " ".join(str(item.get(k, "")) for k in ("title", "name", "file_name", "context", "reported_title", "url"))
     text += " " + str(meta.get("file_name", "")) + " " + str(meta.get("display_name", ""))
     text = text.lower()
     resolution = "2160p" if re.search(r"4k|2160p|uhd|超高清", text) else (
@@ -49,7 +70,9 @@ def analyze(item, runtime):
     source_type = "remux" if re.search(r"remux|原盘|原盘iso|uhd.?bd", text) else (
         "bluray" if re.search(r"blu.?ray|蓝光|bdrip|bd1080", text) else (
         "web" if re.search(r"web.?dl|web.?rip", text) else "unspecified"))
-    got = item.get("file_size_gb") or meta.get("file_size_gb") or size_gb(text)
+    got = item.get("file_size_gb") or meta.get("file_size_gb") or (
+        int(item["size_bytes"]) / 1_000_000_000 if item.get("size_bytes") is not None else size_gb(text))
+    got = float(got) if got is not None else None
     estimates = expected_ranges(runtime / 60, resolution, source_type) if runtime and resolution else []
     expected = estimates[0]["range_gb"] if estimates else None
     confidence = 35 if resolution in ("2160p", "1080p") else 20 if resolution == "720p" else 10
@@ -58,7 +81,8 @@ def analyze(item, runtime):
         reasons.append("名称或说明标注 " + resolution + "（未验证真实画面分辨率）")
     if resolution == "720p":
         reasons.append("低于默认 1080p 兜底清晰度")
-    if re.search(r"cam|tc版|ts版|枪版|预告|trailer|sample", text):
+    unsuitable = bool(re.search(r"\bcam\b|tc版|ts版|枪版|预告|\btrailer\b|\bsample\b", text))
+    if unsuitable:
         confidence -= 50
         reasons.append("疑似枪版/预告/样片")
     if got is not None and estimates:
@@ -100,12 +124,30 @@ def analyze(item, runtime):
     confidence = max(0, min(100, confidence))
     tier = "高" if confidence >= 70 else "中" if confidence >= 40 else "低"
     result = dict(item)
-    selection_score = confidence + (15 if resolution == "2160p" else -10 if resolution == "720p" else 0)
+    # Independent feature categories stack; aliases/repeated labels do not.
+    dolby_vision = bool(re.search(r"dolby[ ._-]*vision|dovi|\bdv\b|杜比视界", text))
+    dolby_audio = bool(re.search(r"atmos|truehd|\bddp(?:\d|\b)|\be[ ._-]?ac[ ._-]?3\b|dd\+|杜比全景声", text))
+    dolby = dolby_vision or dolby_audio or bool(re.search(r"dolby|杜比", text))
+    bluray = bool(re.search(r"blu[ ._-]?ray|蓝光|bdrip|bd1080|uhd[ ._-]?bd", text))
+    container = container_claim(item, meta)
+    components = {"4K": 40 if resolution == "2160p" else 0,
+                  "杜比": 20 if dolby else 0, "蓝光": 15 if bluray else 0,
+                  "MKV": 10 if container == "mkv" else 0,
+                  "接近20GB": round(max(0, 20 - abs(got - 20)), 2) if got is not None else 0,
+                  "4K小体积": -20 if resolution == "2160p" and got is not None and got < 10 else 0}
+    preference_score = sum(components.values())
+    eligible = resolution in ("2160p", "1080p") and confidence >= 40 and item.get("link_state") != "bad" and not unsuitable
+    selection_score = confidence + preference_score
     result["quality"] = {"resolution_claim": resolution, "source_class": source_type,
+                         "container_claim": container,
                          "file_size_gb": got, "expected_size_gb": expected,
                          "expected_size_ranges": estimates,
                          "confidence": tier, "confidence_score": confidence,
                          "selection_score": selection_score,
+                         "selection_eligible": eligible,
+                         "preference_score": preference_score,
+                         "preference_components": components,
+                         "dolby_vision_claim": dolby_vision, "dolby_audio_claim": dolby_audio,
                          "evidence": reasons}
     return result
 
@@ -120,7 +162,10 @@ def main():
             raw = json.load(f)
         rows = raw if isinstance(raw, list) else raw.get("candidates", [])
         analyzed = [analyze(x, args.runtime) for x in rows]
-        analyzed.sort(key=lambda x: -x["quality"]["selection_score"])
+        # Credible 4K first; 1080p fallback; low-confidence/failed leads last.
+        analyzed.sort(key=lambda x: (x["quality"]["selection_eligible"],
+                                    x["quality"]["resolution_claim"] == "2160p",
+                                    x["quality"]["selection_score"]), reverse=True)
         print(json.dumps({"candidate_count": len(analyzed), "runtime_minutes": args.runtime,
                           "candidates": analyzed}, ensure_ascii=False, indent=2))
     except (OSError, ValueError, TypeError) as exc:

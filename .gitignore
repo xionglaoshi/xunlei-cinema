@@ -8,3 +8,7 @@ __pycache__/
 *.torrent
 *.log
 *.db
+
+# Personal movie catalogue, provenance and backups must never be published.
+/影片库*
+/private/

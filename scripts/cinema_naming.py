@@ -23,7 +23,7 @@ def series_chinese_title(series: str, number: int, subtitle: str = "") -> str:
         raise ValueError("Series number must be 1 through 99")
     prefix = f"{clean_title(series)}{int(number)}"
     subtitle = clean_title(subtitle) if subtitle.strip() else ""
-    return prefix + ("：" + subtitle if subtitle else "")
+    return prefix + ("." + subtitle if subtitle else "")
 
 
 def movie_filename(source_name: str, chinese: str, english: str, year: int) -> str:
@@ -34,11 +34,19 @@ def movie_filename(source_name: str, chinese: str, english: str, year: int) -> s
     if not 1888 <= int(year) <= 2100:
         raise ValueError("Invalid release year")
     stem = source_name[: -len(extension)]
-    year_hit = YEAR.search(stem)
+    # Titles may contain a different year (Cold War 1994, released in 2026).
+    # Extract technical metadata only after the independently confirmed year.
+    year_hit = re.search(rf"(?<!\d){int(year)}(?!\d)", stem)
     tail = stem[year_hit.end():] if year_hit else ""
-    tail = UNVERIFIED.sub("", tail.lstrip(" .-_()[]"))
-    tail = INVALID.sub(" ", tail).strip(" .-_()[]")
-    title_base = f"{clean_title(chinese)}.{clean_title(english)}.{year}"
+    # Discard the closing bracket of '(year)', but preserve balanced brackets
+    # inside the actual suffix (for example a release group's name).
+    tail = re.sub(r"^[)\]]+", "", tail).strip(" .-_")
+    tail = UNVERIFIED.sub("", tail)
+    tail = INVALID.sub(" ", tail).strip(" .-_")
+    # Accept old numbered-series input while emitting the current dot separator.
+    chinese = re.sub(r"(?<=[0-9])\s*[：:]\s*", ".", chinese)
+    cn, en = clean_title(chinese), clean_title(english)
+    title_base = f"{cn}.{year}" if cn == en else f"{cn}.{en}.{year}"
     base = title_base
     if tail and tail.lower() not in {"4k", "source claimed 4k"}:
         base += "." + tail

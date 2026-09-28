@@ -10,6 +10,7 @@ if [ ! -x "$BIN" ]; then
   exit 1
 fi
 export PORT
+export CHANNELS="${CHANNELS:-tgsearchers7,seedhub_pro}"
 export ENABLED_PLUGINS="${ENABLED_PLUGINS:-pansearch,thepiratebay}"
 export CACHE_ENABLED=true
 export CACHE_PATH="$VAR/pansou-cache.db"
