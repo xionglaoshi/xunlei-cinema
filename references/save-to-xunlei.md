@@ -41,3 +41,13 @@
 本项目单独下载 `nesk-woe/xunlei-cli` commit `f6af5bfd6b2b182ed2129421285fc57e8db13706`，不发布其源码；原创的 `cinema_cli.py` / `cinema_ops.py` 提供路径解析、目录创建、重复检查和默认预览，`browser_login.py` 将配置目录设为 `0700`、token/配置文件设为 `0600`。上游没有分享转存命令，也不能复用已登录网页会话。其 `dl` 会下载到本机并可能清理云端文件，不适合本技能的“仅保存云盘”目标。授权边界见仓库根目录 `THIRD_PARTY.md`。
 
 来源：[xunlei-cli README](https://github.com/nesk-woe/xunlei-cli/blob/main/xunlei-cli/README.md)、[项目源码](https://github.com/nesk-woe/xunlei-cli)。
+
+## 用户确认替换时的执行顺序
+
+明确片单、候选链接和保留项后，按准确旧文件 ID、原名、字节数及父目录生成私有计划，默认预览。先保存新片，再核对完成状态、精确字节数、原文件分辨率/片长及剪辑版；失败、缺碟或明显不完整时保留旧片。这里是事务操作规范，现有单片 `cinema_cli.py` 不提供一条命令批量替换功能。
+
+新文件命名后移回既有影片目录。已验证移动调用为 `POST /drive/v1/files:batchMove`，请求体 `{"ids":["新文件ID"],"to":{"parent_id":"目标目录ID"}}`；按 ID 读回父目录和新名。若新旧名称相同，先把选定旧文件临时改名并记入回滚记录，再命名新文件。只在新文件已完成且目录、名称、大小均读回正确后调用 `PATCH /drive/v1/files/{旧文件ID}/trash`；不得永久删除或清空回收站。
+
+移入回收站后，普通文件详情查询可能返回 `file_not_found`；应通过 `GET /drive/v1/files` 的 `filters={"trashed":{"eq":true}}` 分页按 ID 核对，必要时有界等待列表刷新，不重复删除。收尾核对未选文件未变；仅清理本次任务生成、所有内容均与种子清单吻合的附件/样片目录，不能删除原有系列文件夹。
+
+私有操作证据放 `private/replacements/`，记录旧新 ID、原始链接、原名、目标名、大小、片长、目录、任务结果与回收站状态。用户下次要求更新影片库时，从其中**实际完成并读回的新文件**生成 `--sources` 导入清单；失败候选不写成已使用来源。

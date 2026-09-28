@@ -42,7 +42,7 @@ def expected_ranges(hours, resolution, source_type):
     # Approximate encoded media size from bitrate x duration; includes a broad
     # audio/container allowance. Ranges overlap intentionally across codecs.
     if resolution == "2160p":
-        choices = [("4K 压制/WEB", 8, 25), ("4K 原盘/Remux", 35, 80)]
+        choices = [("4K 高码率重编码（优选）", 25, 45), ("4K 其他压制/WEB", 8, 25), ("4K 原盘/Remux", 35, 80)]
     elif resolution == "1080p":
         choices = [("1080p 压制/WEB", 3, 10), ("1080p Blu-ray", 8, 22)]
     elif resolution == "720p":
@@ -53,13 +53,118 @@ def expected_ranges(hours, resolution, source_type):
         return [round(hours * low * 0.45 + 0.25, 1), round(hours * high * 0.45 + 0.6, 1)]
     rows = [{"release_type": name, "range_gb": size_range(low, high)} for name, low, high in choices]
     if source_type == "remux":
-        rows = [rows[-1], rows[0]]
+        rows = [rows[-1]] + rows[:-1]
     elif source_type in ("bluray",) and resolution in ("1080p", "720p"):
-        rows = [rows[-1], rows[0]]
+        rows = [rows[-1]] + rows[:-1]
     return rows
 
 
+def positive_number(value):
+    try:
+        value = float(value)
+        return value if 0 < value < float("inf") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def check_completeness(item):
+    """Compare selected-file duration against sourced, edition-specific runtimes.
+
+    A duration match excludes obvious truncation; it does not prove no edits.
+    Only measured file duration can clear the automatic-selection gate.
+    """
+    refs = [r for r in (item.get("runtime_references") or [])
+            if isinstance(r, dict) and positive_number(r.get("minutes"))
+            and r.get("source") and r.get("edition")]
+    edition = item.get("edition")
+    wanted = item.get("preferred_edition")
+    actual = positive_number(item.get("file_runtime_minutes"))
+    if actual is None:
+        seconds = positive_number(item.get("file_duration_seconds"))
+        actual = seconds / 60 if seconds else None
+    evidence = item.get("runtime_evidence")
+    actual_source = item.get("runtime_source")
+    result = {"status": "pending_runtime", "selection_gate_passed": False,
+              "file_runtime_minutes": actual, "edition": edition,
+              "preferred_edition": wanted, "references": refs,
+              "runtime_evidence": evidence, "runtime_source": actual_source,
+              "note": "未取得选定文件的可回查片长；不能用影片介绍片长代替文件片长"}
+    matching_refs = [r for r in refs if edition and r["edition"] == edition]
+    if matching_refs:
+        values = [float(r["minutes"]) for r in matching_refs]
+        if max(values) - min(values) <= max(2, min(values) * .015):
+            result.update(reference_minutes=float(matching_refs[0]["minutes"]),
+                          reference_source=matching_refs[0]["source"])
+    parts = item.get("runtime_parts")
+    part_name = " ".join(str(item.get(k) or "") for k in ("file_name", "name", "title"))
+    split = bool(re.search(r"(?:disc|disk|cd)[ ._-]*[12]\b|分碟|上半部|下半部", part_name, re.I))
+    if parts is not None:
+        count = item.get("expected_part_count")
+        valid = isinstance(count, int) and not isinstance(count, bool) and count > 0 and isinstance(parts, list)
+        valid = valid and len(parts) == count and all(isinstance(x, dict) for x in parts)
+        valid = valid and sorted(x.get("part_number", -1) for x in parts if isinstance(x.get("part_number", -1), int)) == list(range(1, count + 1))
+        valid = valid and item.get("parts_same_edition_confirmed") is True
+        valid = valid and all(positive_number(x.get("minutes")) and x.get("source")
+                              and x.get("evidence") == "measured" for x in parts)
+        if not valid:
+            result.update(status="incomplete_parts", note="分碟数、顺序、同版归属或各碟实测片长未核齐；不得将单碟当完整影片")
+            return result
+        actual = sum(float(x["minutes"]) for x in parts)
+        evidence, actual_source = "measured", [x["source"] for x in parts]
+        result.update(file_runtime_minutes=actual, runtime_evidence=evidence,
+                      runtime_source=actual_source, part_count=count)
+    elif split:
+        result.update(status="incomplete_parts", note="文件含分碟标记，尚未核对全部分碟及总片长")
+        return result
+    if not actual or not actual_source or evidence not in ("measured", "claimed"):
+        return result
+    if not refs:
+        result.update(status="pending_reference", note="缺少带来源及版本的公开片长；未核实完整性")
+        return result
+    matching = [r for r in refs if edition and r["edition"] == edition]
+    if not matching:
+        shortest = min(float(r["minutes"]) for r in refs)
+        if actual < shortest - max(5, shortest * .03):
+            result.update(status="suspected_short_or_other_edition",
+                          difference_from_shortest_reference_minutes=round(actual-shortest, 3),
+                          note="文件短于已查公开版本，剪辑版未确认；需核对缺碟、地区版、帧率或错误文件，不据此断言删减")
+        else:
+            result.update(status="pending_edition", note="未确认候选剪辑版，或无同版公开片长；不能把院线版与加长版直接相减")
+        return result
+    values = [float(r["minutes"]) for r in matching]
+    if max(values) - min(values) > max(2, min(values) * .015):
+        result.update(status="reference_conflict", note="同一版本的公开片长相互冲突，需查发行地区/帧率/版本")
+        return result
+    reference = matching[0]
+    expected = float(reference["minutes"])
+    normalized = actual
+    speed = positive_number(item.get("playback_speed_ratio"))
+    if speed and item.get("playback_speed_source") and (abs(speed - 25 / 24) < .0001 or abs(speed - 25 / 23.976) < .0001):
+        normalized *= speed
+        result["speed_correction"] = {"ratio": speed, "source": item["playback_speed_source"]}
+    delta = normalized - expected
+    tolerance = max(2, expected * .015)
+    result.update(reference_minutes=expected, reference_source=reference["source"],
+                  normalized_minutes=round(normalized, 3), difference_minutes=round(delta, 3),
+                  difference_percent=round(delta / expected * 100, 2), tolerance_minutes=round(tolerance, 3))
+    if wanted and wanted != edition:
+        result.update(status="edition_mismatch", note="候选不是指定剪辑版；不能用片长相近替代版本核对")
+    elif delta < -max(5, expected * .03):
+        result.update(status="suspected_incomplete", note="比同版公开片长明显偏短，疑似分碟/缺失/删减；暂停优选，不能仅据时长断言被阉割")
+    elif abs(delta) > tolerance:
+        result.update(status="runtime_mismatch", note="片长超出容差，需查地区版本、片尾、帧率、花絮或元数据错误")
+    elif evidence != "measured":
+        result.update(status="claimed_consistent", note="发布者片长与公开同版片长接近，尚未取得文件实测片长")
+    else:
+        result.update(status="runtime_consistent", selection_gate_passed=True,
+                      note="实测片长与公开同版片长相符，仅排除明显缺失，不证明每个镜头完整无删减")
+    return result
+
+
 def analyze(item, runtime):
+    completeness = check_completeness(item)
+    runtime_fallback = runtime
+    runtime = completeness.get("file_runtime_minutes") or completeness.get("reference_minutes") or runtime_fallback
     meta = item.get("decoded_metadata") or {}
     text = " ".join(str(item.get(k, "")) for k in ("title", "name", "file_name", "context", "reported_title", "url"))
     text += " " + str(meta.get("file_name", "")) + " " + str(meta.get("display_name", ""))
@@ -67,7 +172,7 @@ def analyze(item, runtime):
     resolution = "2160p" if re.search(r"4k|2160p|uhd|超高清", text) else (
         "1080p" if re.search(r"1080p|1080[pi]|bd1080|full.?hd", text) else (
         "720p" if re.search(r"720p|1280x720|bd1280", text) else None))
-    source_type = "remux" if re.search(r"remux|原盘|原盘iso|uhd.?bd", text) else (
+    source_type = "remux" if re.search(r"remux|原盘|bdmv|\.iso\b", text) else (
         "bluray" if re.search(r"blu.?ray|蓝光|bdrip|bd1080", text) else (
         "web" if re.search(r"web.?dl|web.?rip", text) else "unspecified"))
     got = item.get("file_size_gb") or meta.get("file_size_gb") or (
@@ -130,21 +235,49 @@ def analyze(item, runtime):
     dolby = dolby_vision or dolby_audio or bool(re.search(r"dolby|杜比", text))
     bluray = bool(re.search(r"blu[ ._-]?ray|蓝光|bdrip|bd1080|uhd[ ._-]?bd", text))
     container = container_claim(item, meta)
+    reencoded = source_type != "remux" and bool(re.search(r"重编码|压制|bdrip|brrip|re[ ._-]?encod|(?:x26[45]|av1)", text)) and (bluray or bool(re.search(r"重编码|压制|bdrip|brrip|re[ ._-]?encod", text)))
+    release_priority = 2 if reencoded else 0 if source_type == "remux" else 1
+    target_gb = 28 * max(1, runtime / 150) if runtime and runtime > 0 else 28
+    estimated_total = round(got * 8000 / (runtime * 60), 2) if got is not None and runtime and runtime > 0 else None
+    bitrate = item.get("video_bitrate_mbps")
+    bitrate = float(bitrate) if bitrate is not None else None
+    bitrate_evidence = item.get("bitrate_evidence")
+    bitrate_supported = bool(item.get("bitrate_source")) and bitrate_evidence in ("measured", "claimed")
+    bitrate_score = (25 if bitrate_evidence == "measured" else 15) if bitrate_supported and bitrate is not None and 25 <= bitrate <= 45 else 0
+    if estimated_total is not None:
+        reasons.append(f"估算总码率 {estimated_total:g} Mbps，含音轨与封装，不能当作视频码率")
+    if runtime and runtime > 150:
+        reasons.append("片长超过150分钟，允许超过30GB，不作体积硬淘汰")
     components = {"4K": 40 if resolution == "2160p" else 0,
                   "杜比": 20 if dolby else 0, "蓝光": 15 if bluray else 0,
                   "MKV": 10 if container == "mkv" else 0,
-                  "接近20GB": round(max(0, 20 - abs(got - 20)), 2) if got is not None else 0,
+                  "重编码": 30 if reencoded else -30 if source_type == "remux" else 0,
+                  "视频码率25–45Mbps": bitrate_score,
+                  "片长适配容量": round(max(0, 20 - abs(got - target_gb)), 2) if got is not None else 0,
                   "4K小体积": -20 if resolution == "2160p" and got is not None and got < 10 else 0}
     preference_score = sum(components.values())
-    eligible = resolution in ("2160p", "1080p") and confidence >= 40 and item.get("link_state") != "bad" and not unsuitable
+    provisional_eligible = resolution in ("2160p", "1080p") and confidence >= 40 and item.get("link_state") != "bad" and not unsuitable
+    eligible = provisional_eligible and completeness["selection_gate_passed"]
+    reasons.append(completeness["note"])
     selection_score = confidence + preference_score
     result["quality"] = {"resolution_claim": resolution, "source_class": source_type,
                          "container_claim": container,
+                         "reencoded_claim": reencoded, "release_priority": release_priority,
+                         "preferred_video_bitrate_mbps": [25, 45],
+                         "video_bitrate_mbps": bitrate, "video_bitrate_supported": bitrate_supported,
+                         "estimated_total_bitrate_mbps": estimated_total,
+                         "size_target_gb": round(target_gb, 2),
+                         "preferred_video_only_size_gb": [round(runtime * 60 * x / 8000, 2) for x in (25, 45)] if runtime and runtime > 0 else None,
                          "file_size_gb": got, "expected_size_gb": expected,
                          "expected_size_ranges": estimates,
                          "confidence": tier, "confidence_score": confidence,
                          "selection_score": selection_score,
                          "selection_eligible": eligible,
+                         "provisional_eligible": provisional_eligible,
+                         "completeness": completeness,
+                         "runtime_used_for_size_minutes": runtime,
+                         "runtime_is_assumed": completeness.get("file_runtime_minutes") is None,
+                         "expected_complete_video_size_gb": [round(completeness["reference_minutes"] * 60 * x / 8000, 2) for x in (25, 45)] if completeness.get("reference_minutes") else None,
                          "preference_score": preference_score,
                          "preference_components": components,
                          "dolby_vision_claim": dolby_vision, "dolby_audio_claim": dolby_audio,
@@ -155,7 +288,7 @@ def analyze(item, runtime):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("input", help="search_sources.py 输出的 JSON")
-    ap.add_argument("--runtime", type=int, help="正片时长（分钟）")
+    ap.add_argument("--runtime", type=float, help="仅供容量估算的参考片长（分钟）；不是文件实测片长，不会通过完整性闸口")
     args = ap.parse_args()
     try:
         with open(args.input, encoding="utf-8") as f:
@@ -164,7 +297,9 @@ def main():
         analyzed = [analyze(x, args.runtime) for x in rows]
         # Credible 4K first; 1080p fallback; low-confidence/failed leads last.
         analyzed.sort(key=lambda x: (x["quality"]["selection_eligible"],
+                                    x["quality"]["provisional_eligible"],
                                     x["quality"]["resolution_claim"] == "2160p",
+                                    x["quality"]["release_priority"],
                                     x["quality"]["selection_score"]), reverse=True)
         print(json.dumps({"candidate_count": len(analyzed), "runtime_minutes": args.runtime,
                           "candidates": analyzed}, ensure_ascii=False, indent=2))
