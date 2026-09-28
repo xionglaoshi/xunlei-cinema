@@ -17,6 +17,15 @@ def clean_title(value: str) -> str:
     return value
 
 
+def series_chinese_title(series: str, number: int, subtitle: str = "") -> str:
+    """Format an actual numbered franchise, not a shared-universe folder."""
+    if not 1 <= int(number) <= 99:
+        raise ValueError("Series number must be 1 through 99")
+    prefix = f"{clean_title(series)}{int(number)}"
+    subtitle = clean_title(subtitle) if subtitle.strip() else ""
+    return prefix + ("：" + subtitle if subtitle else "")
+
+
 def movie_filename(source_name: str, chinese: str, english: str, year: int) -> str:
     """Keep only source technical suffix after its release year."""
     extension = PurePath(source_name).suffix.lower()

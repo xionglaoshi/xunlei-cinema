@@ -8,7 +8,7 @@
 - 结合片名、年份、来源页、声明分辨率、片长和文件大小给候选排序。默认优先可信的 4K/2160p，以 1080p 兜底。名称或网页声称的分辨率不等于真实视频参数。
 - 找片受阻时按 [`references/resource-strategy.md`](references/resource-strategy.md) 换别名、站点和链接类型；高产站点的实测线索见 [`references/source-sites.md`](references/source-sites.md)。
 - 使用独立的迅雷登录：系列片放在 `家庭影院/<系列名>系列`，非系列片放在 `家庭影院/<片名>`，不套中间目录。提交前预览目标并检查同名文件；任务完成后读回目录，才确认已保存。
-- 正片文件统一用中文片名、英文原名、上映年份和原有技术信息命名；去掉 `来源标称4K` 等无意义标签。
+- 正片文件统一用中文片名、完整英文原名、上映年份和原有技术信息命名；系列中文名采用 `系列名＋序号：单片副标题`，例如 `黑客帝国3：矩阵革命.The Matrix Revolutions.2003.mkv`。具体规则见 [`references/film-naming.md`](references/film-naming.md)。
 - 账号、新设备图形验证和短信验证由用户在内置浏览器完成。登录与故障排除步骤见 [`references/troubleshooting.md`](references/troubleshooting.md)。
 
 ## 安装
