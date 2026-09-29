@@ -5,6 +5,7 @@ Provides a rich, interactive CLI using Click and Rich libraries.
 
 import asyncio
 import functools
+import json
 import os
 import sys
 from pathlib import Path
@@ -27,6 +28,7 @@ from rich.text import Text
 from .api import XunleiAPI
 from .auth import AuthManager, ReviewPanelException
 from .config import Config
+from .cinema import find_duplicate, resolve_folder, validate_source
 from .downloader import DownloadEngine
 from .models import FileInfo, OfflineTask
 from .offline import OfflineManager
@@ -265,9 +267,7 @@ def main() -> None:
 
 
 def _show_review_panel_help(review_data) -> None:
-    """Show instructions for completing SMS verification."""
-    import json
-
+    """Explain the official wrapper-page flow without printing one-time credentials."""
     console.print(
         Panel(
             "[bold yellow]New Device Verification Required[/bold yellow]\n\n"
@@ -278,51 +278,8 @@ def _show_review_panel_help(review_data) -> None:
         )
     )
 
-    # Build compact single-line JSON (safe for console paste)
-    review_json_compact = json.dumps(
-        review_data.to_dict(), separators=(",", ":"), ensure_ascii=False
-    )
-
-    # Build complete executable JS command
-    js_command = (
-        "window.reviewCb ? reviewCb(" + review_json_compact + ") : "
-        "(window.android ? android.reviewCb(" + review_json_compact + ") : "
-        "location.href=" + json.dumps(review_data.reviewurl) + ")"
-    )
-
-    console.print("\n[bold]Step 1:[/bold] Open this URL in your browser:")
-    console.print(
-        "[cyan]https://i.xunlei.com/xlcaptcha/android.html[/cyan]",
-        style="bold cyan underline",
-    )
-
-    console.print("\n[bold]Step 2:[/bold] Press F12 -> Console tab")
-
-    console.print(
-        "\n[bold]Step 3:[/bold] Copy & paste this [bold]entire line[/bold] then press Enter:"
-    )
-    console.print("[dim]--- copy the entire line below ---[/dim]")
-    console.print(f"[green]{js_command}[/green]")
-    console.print("[dim]--- copy the entire line above ---[/dim]")
-
-    console.print(
-        "\n[yellow]Tip:[/yellow] [dim]The line starts with 'window.reviewCb' and ends with ')'. "
-        "Make sure you copy the WHOLE line.[/dim]"
-    )
-
-    console.print(
-        "\n[bold]Step 4:[/bold] Page redirects to SMS verification -> "
-        "click 'Get Code' -> enter the code"
-    )
-
-    console.print(
-        "\n[bold]Step 5:[/bold] After verification, Console will show a "
-        "[bold green]new creditkey[/bold green]. Paste it below."
-    )
-
-    # Also show the direct URL option
-    console.print(f"\n[dim]Alternative: directly open this URL:[/dim]")
-    console.print(f"[cyan]{review_data.reviewurl}[/cyan]")
+    console.print("\nAgent verification page: https://i.xunlei.com/xlcaptcha/android.html")
+    console.print("Ask the Agent to start verification, finish SMS there, then press Enter here.")
 
 
 @cli.command()
@@ -369,30 +326,41 @@ async def login(
                 console.print(f"\n[bold green]Login successful![/bold green]")
                 console.print(f"User ID: [cyan]{token.user_id}[/cyan]")
 
-                # Save creditkey for future use
-                if creditkey:
-                    cfg = ctx.config.load_config()
-                    cfg["creditkey"] = creditkey
-                    ctx.config.save_config(cfg)
-
                 return
 
             except ReviewPanelException as e:
                 attempt += 1
-                if attempt > 1 and not creditkey:
-                    console.print(
-                        "[red]Still requires verification. "
-                        "Please ensure you completed the SMS step.[/red]"
-                    )
+                if attempt > 3:
+                    raise ValueError("Verification was not accepted after three attempts")
 
                 _show_review_panel_help(e.review_data)
-
-                creditkey = console.input(
-                    "[bold green]Enter creditkey (or 'q' to quit): [/bold green]"
+                pending_path = ctx.config.config_dir / "pending-review.json"
+                descriptor = os.open(
+                    pending_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600
                 )
-                if creditkey.lower() == "q":
+                try:
+                    with os.fdopen(descriptor, "w", encoding="utf-8") as pending_file:
+                        json.dump(e.review_data.to_dict(), pending_file)
+                    os.chmod(pending_path, 0o600)
+                    reply = console.input("[bold green]After Agent/SMS verification press Enter (or q to quit): [/bold green]")
+                finally:
+                    pending_path.unlink(missing_ok=True)
+                if reply.strip().lower() == "q":
                     console.print("[yellow]Login cancelled.[/yellow]")
                     return
+                verified_path = ctx.config.config_dir / "verified-creditkey.json"
+                if verified_path.exists():
+                    try:
+                        if verified_path.stat().st_mode & 0o077:
+                            raise ValueError("Verified key file is not private")
+                        verified_data = json.loads(verified_path.read_text(encoding="utf-8"))
+                        creditkey = verified_data["creditkey"]
+                    finally:
+                        verified_path.unlink(missing_ok=True)
+                else:
+                    creditkey = e.review_data.creditkey
+                if not creditkey:
+                    creditkey = console.input("[bold]Credit key from verification page: [/bold]")
 
     except Exception as e:
         console.print(f"[bold red]Login failed:[/bold red] {e}")
@@ -586,6 +554,46 @@ async def info(ctx: Context, file_id: str, debug: bool) -> None:
 
 
 # ==================== Offline Download Commands ====================
+
+
+@cli.command("cinema-save")
+@click.argument("url")
+@click.option("--folder", required=True, help="Cloud folder path, e.g. 家庭影院/星球大战系列")
+@click.option("--expect-name", default="", help="Expected file name for duplicate checking")
+@click.option("--execute", is_flag=True, help="Create missing folders and submit the task")
+@async_cmd
+@pass_context
+async def cinema_save(ctx: Context, url: str, folder: str, expect_name: str, execute: bool) -> None:
+    """Save a direct link to a cloud folder; preview by default."""
+    try:
+        source = validate_source(url)
+        if not ctx.auth.is_logged_in():
+            raise ValueError("Not logged in. Run 'xunlei login' first")
+
+        folder_id, missing = await resolve_folder(ctx.api, folder, create=False)
+        if not missing:
+            duplicate = await find_duplicate(ctx.api, source, folder_id, expect_name)
+            if duplicate:
+                console.print(f"[yellow]Skipped: {duplicate}[/yellow]")
+                return
+
+        console.print(f"Target: {folder}")
+        console.print(f"Missing folders: {' / '.join(missing) if missing else 'none'}")
+        if not execute:
+            console.print("[yellow]Preview only. Add --execute to submit.[/yellow]")
+            return
+
+        if missing:
+            folder_id, _ = await resolve_folder(ctx.api, folder, create=True)
+        task = await ctx.api.create_offline_task(source, folder_id)
+        console.print(f"[green]Task created[/green]: {task.task_id}")
+        console.print(f"Target folder ID: {folder_id}")
+        console.print("Check task status and read back the target folder before reporting success.")
+    except Exception as exc:
+        console.print(f"[red]Error: {exc}[/red]")
+        raise click.ClickException(str(exc)) from exc
+    finally:
+        await ctx.close()
 
 
 @cli.command("offline")

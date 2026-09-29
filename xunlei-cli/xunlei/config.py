@@ -21,7 +21,8 @@ class Config:
         self.config_dir = Path.home() / ".config" / "xunlei-cli"
         self.config_file = self.config_dir / "config.json"
         self.token_file = self.config_dir / "token.json"
-        self.config_dir.mkdir(parents=True, exist_ok=True)
+        self.config_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(self.config_dir, 0o700)
 
         # File locks for process-safe access
         self._config_lock = FileLock(str(self.config_file) + ".lock")
@@ -53,6 +54,7 @@ class Config:
                 f.flush()
                 os.fsync(f.fileno())
             tmp.replace(self.config_file)
+            os.chmod(self.config_file, 0o600)
 
     # ==================== Token (authentication) ====================
 
