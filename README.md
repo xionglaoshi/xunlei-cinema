@@ -8,7 +8,7 @@
 - 结合片名、年份、来源页、声明分辨率、片长和文件大小给候选排序。默认优先可信的 4K/2160p，以 1080p 兜底；4K、杜比、蓝光、MKV 分别加 40、20、15、10 分，优先 4K 高码率重编码版，视频码率目标 25–45 Mbps，常规片长单片略低于 30 GB，超过 150 分钟允许超过 30 GB。名称或网页声称的分辨率不等于真实视频参数，偏好分不能覆盖身份与可信度核验。
 - 完整性优先：按剪辑版比较有来源的公开片长与对应文件实际片长，核对分碟；片长缺失、版本不明或异常只列待核候选。实际片长吻合不等于逐镜头无删减；总码率含音轨，不能当作视频码率。
 - 找片受阻时按 [`references/resource-strategy.md`](references/resource-strategy.md) 换别名、站点和链接类型；其中的“有效资源点”记录最终选优入盘的影片及线索渠道。
-- 使用独立的迅雷登录：系列片放在 `家庭影院/<系列名>系列`，非系列片放在 `家庭影院/<片名>`，不套中间目录。提交前预览目标并检查同名文件；任务完成后读回目录，才确认已保存。
+- 云盘操作优先用内置浏览器打开 `https://pan.xunlei.com/`，通过浏览器自动化保存、建目录和改名；网页不可用、功能缺失或页面故障无法可靠继续时，才用 computer-use 操作迅雷桌面端。CLI/API 保留为精确清单、批量处理及读回的辅助工具，网页登录与 CLI 独立登录互不替代。系列片放在 `家庭影院/<系列名>系列`，非系列片放在 `家庭影院/<片名>`，不套中间目录。提交前预览目标并检查同名文件；任务完成后读回目录，才确认已保存。
 - 正片文件统一用中文片名、完整英文原名、上映年份和原有技术信息命名；系列中文名采用 `系列名＋序号.单片副标题`，例如 `黑客帝国3.矩阵革命.The Matrix Revolutions.2003.mkv`。具体规则见 [`references/film-naming.md`](references/film-naming.md)。
 - 账号、新设备图形验证和短信验证由用户在内置浏览器完成。登录与故障排除步骤见 [`references/troubleshooting.md`](references/troubleshooting.md)。
 
@@ -17,8 +17,8 @@
 面向 macOS Apple Silicon；其他平台的 PanSou 重建方法见 [`references/dependencies.md`](references/dependencies.md)。需要 Python 3.9+、Git 与可访问 GitHub/PyPI 的网络。
 
 ```sh
-git clone https://github.com/xionglaoshi/xunlei-cinema.git ~/.agents/skills/xunlei-cinema
-cd ~/.agents/skills/xunlei-cinema
+git clone https://github.com/xionglaoshi/xunlei-cinema.git ~/.codex/skills/xunlei-cinema
+cd ~/.codex/skills/xunlei-cinema
 sh scripts/setup.sh
 ```
 
