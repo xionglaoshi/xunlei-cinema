@@ -7,7 +7,7 @@
 候选类型：
 
 - 迅雷云盘分享：`https://pan.xunlei.com/s/...`；用 PanSou 检查分享是否有效，再打开分享页核对目录和影片。
-- 迅雷离线链接：`thunder://...`；用 `scripts/inspect_link.py` 还原封装内容，读取文件名、声明大小和哈希（如可解析）。这不验证远端文件仍可下载。
+- 迅雷离线链接：`thunder://...`；用 `~/.codex/tools/xunlei-cinema/scripts/inspect_link.py` 还原封装内容，读取文件名、声明大小和哈希（如可解析）。这不验证远端文件仍可下载。
 - 磁力：`magnet:?xt=...`；提取 info hash、显示名称和 tracker 数。磁力本身通常不包含种子清单/文件大小；不连接 DHT、不下载媒体时应标低置信度。
 - `.torrent`：搜索到公开种子链接时记录原网页与链接。只有用户提供本地种子文件后才可运行 `inspect_link.py --torrent-file <文件>` 读取文件清单和体积；不得启动 BT 客户端下载内容。
 - HTTP/HTTPS 视频直链：脚本识别常见视频扩展名（如 `.mkv`、`.mp4`、`.webm`），标为 `direct_url`；仍须核对来源页与影片信息。没有这些扩展名的真实下载接口可能需要浏览器兜底发现。
@@ -16,9 +16,9 @@
 默认运行：
 
 ```sh
-scripts/start_pansou.sh
-python3 scripts/search_sources.py "黑鹰坠落" --year 2001 --alias "Black Hawk Down" --output var/black-hawk.json
-python3 scripts/analyze_sources.py var/black-hawk.json --runtime 144
+~/.codex/tools/xunlei-cinema/scripts/start_pansou.sh
+~/.codex/venv/bin/python3 ~/.codex/tools/xunlei-cinema/scripts/search_sources.py "黑鹰坠落" --year 2001 --alias "Black Hawk Down" --output ~/.codex/tools/xunlei-cinema/var/black-hawk.json
+~/.codex/venv/bin/python3 ~/.codex/tools/xunlei-cinema/scripts/analyze_sources.py ~/.codex/tools/xunlei-cinema/var/black-hawk.json --runtime 144
 # 回到启动 PanSou 的终端按 Ctrl-C 停止
 ```
 

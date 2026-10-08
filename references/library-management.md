@@ -1,14 +1,14 @@
 # 私人影片库维护
 
-入口文档为技能根目录 `影片库.md`；结构化正主为 `private/影片库.json`，每次写入前的备份在 `private/backups/`。文件权限 0600，私有目录 0700。两者由同一次更新生成，修改来源先通过导入文件更新正主，勿只手改展示文档。
+入口文档为`~/.codex/tools/xunlei-cinema/影片库.md`；结构化正主为 `~/.codex/tools/xunlei-cinema/private/影片库.json`，每次写入前的备份在 `~/.codex/tools/xunlei-cinema/private/backups/`。文件权限 0600，私有目录 0700。两者由同一次更新生成，修改来源先通过导入文件更新正主，勿只手改展示文档。
 
 ## 更新触发与执行
 
-首次建库按用户明确要求执行；之后每次影片实际保存完成并回读目标目录后自动更新，不因搜索候选、任务创建或未完成任务刷新。使用技能内已安装的 CLI 环境，从技能根目录运行：
+首次建库按用户明确要求执行；之后每次影片实际保存完成并回读目标目录后自动更新，不因搜索候选、任务创建或未完成任务刷新。使用 Codex 共用 Python 环境运行：
 
 ```sh
-var/xunlei-cli-venv/bin/python scripts/cinema_library.py --dry-run
-var/xunlei-cli-venv/bin/python scripts/cinema_library.py --execute
+~/.codex/venv/bin/python3 ~/.codex/tools/xunlei-cinema/scripts/cinema_library.py --dry-run
+~/.codex/venv/bin/python3 ~/.codex/tools/xunlei-cinema/scripts/cinema_library.py --execute
 ```
 
 默认预览仅读取云盘；`--execute` 只写本地私人台账，不下载、删除、移动或改名云盘文件。账号认证可能按已有 CLI 逻辑刷新本机 token。两次读取中出现差异时以执行时完成的扫描为准。
@@ -30,22 +30,22 @@ var/xunlei-cli-venv/bin/python scripts/cinema_library.py --execute
 
 历史已入盘清单可用 `--history 私有清单.json` 导入；格式为数组，每项包含 `id`、`name`、`folder`（家庭影院下的相对目录）、`size`。只导入实际云盘读回清单，不导入搜索候选。历史清单文件放在技能目录内，导入后再用本次读取确认状态。
 
-经核对的来源用 `--sources private/来源补录.json` 导入，先 dry-run 再 execute；格式为数组，每项必填 `file_id`、`url`、`evidence`，可选 `page`、`pass_code`、`original_name`。`evidence` 写明对应证据和核验程度；同原名加同字节大小只能作为“待核实的同版本候选”，不能声称是当时采用的链接。任何来源不覆盖旧链接；缺少来源保留“待补录”，不去网上自动补搜。临时 CDN 播放地址、访问 token、refresh token、验证码等不能进台账。
+经核对的来源用 `--sources ~/.codex/tools/xunlei-cinema/private/来源补录.json` 导入，先 dry-run 再 execute；格式为数组，每项必填 `file_id`、`url`、`evidence`，可选 `page`、`pass_code`、`original_name`。`evidence` 写明对应证据和核验程度；同原名加同字节大小只能作为“待核实的同版本候选”，不能声称是当时采用的链接。任何来源不覆盖旧链接；缺少来源保留“待补录”，不去网上自动补搜。临时 CDN 播放地址、访问 token、refresh token、验证码等不能进台账。
 
 用户要求召回时读原始链接、原名、最后目录及大小，检查链接是否仍有效。保留链接不能保证永久可用；失效后经用户请求再重新搜索。
 
 ## 不创建任务的来源验证
 
-用户要求测试能否召回但不要添加时，先运行 `var/xunlei-cli-venv/bin/python scripts/check_library_sources.py --dry-run`，再加 `--execute` 进行元数据解析并把结果标注进私人影片库。此脚本的 execute 只允许 `POST /resource/list` 与 `GET /share`，不允许创建文件、任务或转存；默认仅预览检查数量。报告位于 `private/链接验证-<时间>.json`。
+用户要求测试能否召回但不要添加时，先运行 `~/.codex/venv/bin/python3 ~/.codex/tools/xunlei-cinema/scripts/check_library_sources.py --dry-run`，再加 `--execute` 进行元数据解析并把结果标注进私人影片库。此脚本的 execute 只允许 `POST /resource/list` 与 `GET /share`，不允许创建文件、任务或转存；默认仅预览检查数量。报告位于 `~/.codex/tools/xunlei-cinema/private/链接验证-<时间>.json`。
 
 官方前端的 `getFilesFromUrls` 使用 `resource/list`，请求形如 `{"urls":"单个链接字符串","with":["file_category"]}`，其中 urls 不是数组。返回 `list.resources` 和嵌套 `dir.resources`；出现分页令牌时注明清单未完整，不把缺失的目标误判为链接失效。按原始文件名与字节大小核对目标，只有大小对应时明确标为待核实。成功解析不保证最终离线完成，真正下载成功仍须用户允许提交并在完成后读回。
 
 迅雷分享 URL 属于转存路线，不能保证可粘贴到“添加链接”下载。只验证分享状态；提取码缺失、敏感、失效均如实记录，不把“分享可访问”当作已核对目标文件。网页的“新建离线链接任务 → 确定”会提交任务，不能拿该按钮做用户要求的无添加测试。
 
-缺提取码时可在同一检查命令加 `--recover-codes --only-unchecked`：从技能 `var/` 的既有来源记录按同一分享 ID 找唯一提取码，只复测新补齐或尚未验证的链接；不猜码、不重新搜索。仍先 dry-run，再 execute。历史验证结果在补码时保留，所有结果只写私有文件。
+缺提取码时可在同一检查命令加 `--recover-codes --only-unchecked`：从工具目录 `~/.codex/tools/xunlei-cinema/var/` 的既有来源记录按同一分享 ID 找唯一提取码，只复测新补齐或尚未验证的链接；不猜码、不重新搜索。仍先 dry-run，再 execute。历史验证结果在补码时保留，所有结果只写私有文件。
 
 ## 隐私与回滚
 
-技能 `.gitignore` 排除了根目录 `影片库*` 和 `private/`。提交或打包前检查待发布文件，禁止 `git add -f` 绕过；Git 忽略不保护已经跟踪的文件，也不保护任意复制后的路径。若影片库进入私有 WIKI，必须在该 WIKI 仓库另设忽略并检查未被跟踪；本规则不自动把影片库复制进 WIKI。私人数据只能通过用户指定的私有备份迁移。
+私人影片库与数据独立存放在工具目录，不属于技能发布内容。提交或打包前检查待发布文件，禁止 `git add -f` 绕过；Git 忽略不保护已经跟踪的文件，也不保护任意复制后的路径。若影片库进入私有 WIKI，必须在该 WIKI 仓库另设忽略并检查未被跟踪；本规则不自动把影片库复制进 WIKI。私人数据只能通过用户指定的私有备份迁移。
 
-执行中断时 JSON 正主可能已写入而 MD 尚未刷新，下次成功执行会重建 MD。需要回滚时，从同一个 `private/backups/<时间>/` 恢复 JSON 和 MD 成对文件，保留 0600 权限。所有备份同样禁止 Git 上传。
+执行中断时 JSON 正主可能已写入而 MD 尚未刷新，下次成功执行会重建 MD。需要回滚时，从同一个 `~/.codex/tools/xunlei-cinema/private/backups/<时间>/` 恢复 JSON 和 MD 成对文件，保留 0600 权限。所有备份同样禁止 Git 上传。
