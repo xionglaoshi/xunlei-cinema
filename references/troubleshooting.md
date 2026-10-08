@@ -9,7 +9,7 @@
 ## xunlei-cli 需要重新登录／重新验证：首选完整流程
 
 1. **先查现状**：确认 `~/.config/xunlei-cli/token.json` 是否存在且权限为 `0600`，运行 `~/.codex/venv/bin/xunlei user`。若能读出正确账号及会员状态，无需重新登录；失败才继续。网页端 `pan.xunlei.com` 的登录状态不等于 CLI 已登录。
-2. **启动本机临时登录页**：运行 `~/.codex/venv/bin/python3 ~/.codex/tools/xunlei-cinema/scripts/browser_login.py`，保留该终端进程。脚本输出一条随机的 `http://127.0.0.1:<端口>/<随机串>` 地址。用当前浏览器自动化工具把它**显示在内置浏览器**，交由用户自行输入迅雷账号、密码并点“登录”；不要让用户在聊天中发送凭据。此服务只绑定本机回环地址，密码仅在进程内存暂存；成功或失败后清空。
+2. **启动本机临时登录页**：运行 `~/.codex/venv/bin/python3 ~/.codex/skills/xunlei-cinema/scripts/browser_login.py`，保留该终端进程。脚本输出一条随机的 `http://127.0.0.1:<端口>/<随机串>` 地址。用当前浏览器自动化工具把它**显示在内置浏览器**，交由用户自行输入迅雷账号、密码并点“登录”；不要让用户在聊天中发送凭据。此服务只绑定本机回环地址，密码仅在进程内存暂存；成功或失败后清空。
 3. **遇到 `review` 阶段**：在内置浏览器另开迅雷官方 `https://i.xunlei.com/xlcaptcha/android.html`，保持用户可见。把本机地址记作 `base`。用浏览器工具在 Agent 运行环境读取 `base + '/review'`，请求头 `Origin: https://i.xunlei.com`；**不要输出响应内容**。调用官方页的 `window.reviewCb(JSON.stringify(reviewData))` 启动官方验证。`reviewData` 包含一次性凭据，不要打印、复制到聊天或放进浏览器 URL。按当前浏览器操作规则获得必要授权；图形和短信验证由用户亲自完成。
 4. **页面看似不动时查回调**：只在当前验证页读取开发日志，在 Agent 运行环境内找到最后一条 `nativeRecvOperationResult` 并解析 JSON；`roErrorCode === '0'` 且 `roData.creditkey` 非空，才表示验证通过。日志原文和新 key 不输出。将 `{"creditkey": <新 key>}` 通过本机 POST 发给 `base + '/verified'`；检查返回 `stage: success`。旧 `reviewData.creditkey` 不能代替这里的新 key。
 5. **读回确认**：刷新本机登录页，应显示“登录成功”；再检查 token 文件权限 `0600` 并运行 `~/.codex/venv/bin/xunlei user`。三项都成立才报告独立登录成功。停止 `browser_login.py` 临时进程，避免服务和密码内存长期留存。若浏览器会话结束使验证页消失，重新走本流程，不复用上一轮一次性验证数据。
@@ -87,7 +87,7 @@ nodeRepl.write({ stage: (await response.json()).stage }); // 只输出状态
 
 ## 维护边界
 
-- `~/.codex/tools/xunlei-cinema/scripts/browser_login.py` 是当前已实测的独立登录入口。原版 `xunlei login` 会打印一次性验证数据，因此公开版默认不用它处理新设备验证。
+- `~/.codex/skills/xunlei-cinema/scripts/browser_login.py` 是当前已实测的独立登录入口。原版 `xunlei login` 会打印一次性验证数据，因此公开版默认不用它处理新设备验证。
 - 不把 token 内容、账号密码、短信码、浏览器开发日志原文或一次性验证 URL 写入本文件。token 仍在用户指定的 `~/.config/xunlei-cli/token.json`，权限应为 `0600`。
 - 开发机实测证据：CLI 读到正确迅雷 VIP 账号；先前改造版 `cinema-save` 将 MDN 开放样片 `flower.webm` 保存至 `家庭影院/技能验证-开放样片`，任务为 `completed`，目录读回约 541 KB 文件。公开版 `cinema_cli.py` 已完成只读预览，实际提交尚待复测。`cinema_share.py` 已将《流浪地球》两部及其他所选影片逐文件转存，返回 `RESTORE_COMPLETE`，目标目录读回文件名和字节数。此结果不证明其他离线协议、实际解码分辨率或 TV 端可播放。
 

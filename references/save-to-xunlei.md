@@ -29,11 +29,11 @@
 
 ## 直接链接：CLI 辅助路径
 
-运行 `sh ~/.codex/tools/xunlei-cinema/scripts/setup.sh` 后，`xunlei-cli` 安装到 Codex 共用 Python 环境；本项目原创的云盘路径适配脚本是 `~/.codex/tools/xunlei-cinema/scripts/cinema_cli.py`。首次登录用 `~/.codex/tools/xunlei-cinema/scripts/browser_login.py`：以 `~/.codex/venv/bin/python3` 启动，把输出的一次性本机 URL 打开在内置浏览器，让用户自行输入账号和密码。脚本只在进程内存中暂存密码并调用迅雷登录接口；验证成功后清空密码，将 token 写到 `~/.config/xunlei-cli/token.json`，权限为 `0600`。完成后停止临时服务。不要将密码、短信码、带 `creditkey` 的链接或 token 发在聊天里。
+运行 `sh ~/.codex/skills/xunlei-cinema/scripts/setup.sh` 后，`xunlei-cli` 安装到 Codex 共用 Python 环境；本项目原创的云盘路径适配脚本是 `~/.codex/skills/xunlei-cinema/scripts/cinema_cli.py`。首次登录用 `~/.codex/skills/xunlei-cinema/scripts/browser_login.py`：以 `~/.codex/venv/bin/python3` 启动，把输出的一次性本机 URL 打开在内置浏览器，让用户自行输入账号和密码。脚本只在进程内存中暂存密码并调用迅雷登录接口；验证成功后清空密码，将 token 写到 `~/.config/xunlei-cli/token.json`，权限为 `0600`。完成后停止临时服务。不要将密码、短信码、带 `creditkey` 的链接或 token 发在聊天里。
 
 若新设备登录触发 `review_panel`：迅雷给出的 `vertifyPhone.html` 原始长链接直接打开可能白屏，[OpenList 的同类报告](https://github.com/OpenListTeam/OpenList/issues/136)也有此现象。Agent 在内置浏览器打开官方 `https://i.xunlei.com/xlcaptcha/android.html`，按当前浏览器工具的授权规则调用页面的 `reviewCb`，传入本机登录服务提供的一次性验证数据；用户自行完成图形/短信验证。网页可能不显示成功提示，但 `nativeRecvOperationResult` 回调中的 `roErrorCode: 0` 和新的 `creditkey` 表示通过。Agent 将新 key 只传回本机登录服务的 `/verified` 接口，不在聊天或日志里打印。以 token 文件存在、权限正确和 `xunlei user` 成功作为登录完成证据。完整步骤见 `troubleshooting.md`；原版终端 `xunlei login` 会打印敏感验证数据，不作为推荐入口。
 
-保存示例：`~/.codex/venv/bin/python3 ~/.codex/tools/xunlei-cinema/scripts/cinema_cli.py 'https://example.org/film.mp4' --folder '家庭影院/星球大战系列' --expect-name 'film.mp4'`。默认只预览目标路径和缺失目录；确认路径后加 `--execute` 才会创建目录及离线任务。命令会检查同名文件和最近的同链接离线任务；创建任务后还须查任务状态和目标目录文件，不能只凭提交成功汇报完成。`pan.xunlei.com/s/...` 分享链接会被拒绝并改走转存流程。
+保存示例：`~/.codex/venv/bin/python3 ~/.codex/skills/xunlei-cinema/scripts/cinema_cli.py 'https://example.org/film.mp4' --folder '家庭影院/星球大战系列' --expect-name 'film.mp4'`。默认只预览目标路径和缺失目录；确认路径后加 `--execute` 才会创建目录及离线任务。命令会检查同名文件和最近的同链接离线任务；创建任务后还须查任务状态和目标目录文件，不能只凭提交成功汇报完成。`pan.xunlei.com/s/...` 分享链接会被拒绝并改走转存流程。
 
 开发机上的先前改造版已通过真实账号独立登录及 HTTPS 小样片的云端提交、完成状态和目标目录读回。本公开版 `cinema_cli.py` 调用同一 API，已做只读预览；新安装后的 `--execute` 仍应先用开放小样片复测。若接口或登录失败，在已登录的网页端进入目标目录，点击“添加 → 添加链接”。“新建离线链接任务”应显示完整的“保存到”路径；若不是目标目录，先点“更改”。填入经核对的单个链接，提交后检查反馈、传输列表和目录中的文件。多文件磁力任务要核对解析后的文件清单，避免整包混入非目标影片。失败时记录原链接类型、服务端提示和目录，不盲目重复提交。
 
@@ -43,9 +43,9 @@
 
 ## 迅雷分享：按文件转存
 
-分享 URL 属于 `pan.xunlei.com/s/...` 时，优先通过内置浏览器逐文件转存；需要精确清单或网页无法可靠筛选时，运行 `~/.codex/venv/bin/python3 ~/.codex/tools/xunlei-cinema/scripts/cinema_share.py '<分享 URL>'`。此命令只读取分享状态及视频文件清单，输出文件 ID、完整文件名、实际字节数、分享内路径；按片名、年份、画质声明和容量选择**一个准确文件 ID**。使用 `--file-id '<ID>' --folder '家庭影院/<目录名>' --min-gb 10` 预览，核对后加 `--execute` 才会提交转存并读回文件名和字节数。`--min-gb 10` 适用于当前用户对常规 4K 长片的偏好，不能把容量当成分辨率实测。多部影片须逐个 ID 操作，避免海报、NFO 和错误影片一起入盘。
+分享 URL 属于 `pan.xunlei.com/s/...` 时，优先通过内置浏览器逐文件转存；需要精确清单或网页无法可靠筛选时，运行 `~/.codex/venv/bin/python3 ~/.codex/skills/xunlei-cinema/scripts/cinema_share.py '<分享 URL>'`。此命令只读取分享状态及视频文件清单，输出文件 ID、完整文件名、实际字节数、分享内路径；按片名、年份、画质声明和容量选择**一个准确文件 ID**。使用 `--file-id '<ID>' --folder '家庭影院/<目录名>' --min-gb 10` 预览，核对后加 `--execute` 才会提交转存并读回文件名和字节数。`--min-gb 10` 适用于当前用户对常规 4K 长片的偏好，不能把容量当成分辨率实测。多部影片须逐个 ID 操作，避免海报、NFO 和错误影片一起入盘。
 
-已确认片目时给转存命令同时加 `--chinese '中文片名' --english 'English Title' --year 2023`，脚本将来源文件名中的可用技术信息接在规范中英片名和年份后；仅在特殊情况下使用 `--save-as`。已有云盘文件的批量改名用 `~/.codex/tools/xunlei-cinema/scripts/cinema_rename.py <JSON清单>` 预览，再加 `--execute`；中断后先核对读回，再用 `--resume --execute` 继续。脚本逐项核对文件 ID、原名、大小，执行前保存回滚清单，改名后按 ID 读回。回滚使用该清单的 `--rollback --resume --execute`，会跳过尚未改名的项目。
+已确认片目时给转存命令同时加 `--chinese '中文片名' --english 'English Title' --year 2023`，脚本将来源文件名中的可用技术信息接在规范中英片名和年份后；仅在特殊情况下使用 `--save-as`。已有云盘文件的批量改名用 `~/.codex/skills/xunlei-cinema/scripts/cinema_rename.py <JSON清单>` 预览，再加 `--execute`；中断后先核对读回，再用 `--resume --execute` 继续。脚本逐项核对文件 ID、原名、大小，执行前保存回滚清单，改名后按 ID 读回。回滚使用该清单的 `--rollback --resume --execute`，会跳过尚未改名的项目。
 
 2026-09-28 实测：用迅雷分享接口读取《流浪地球》两部合集，分别将 2019 年 `The Wandering Earth`（20,510,105,588 字节）与 2023 年 `The Wandering Earth II`（22,679,383,091 字节）转存到 `家庭影院/流浪地球系列`。两次接口返回 `RESTORE_COMPLETE`，目标目录均按文件名、大小读回。此结果证明这两个分享文件已进入云盘；文件名中的 2160p/HDR 等是资源声明，尚未解码实测，也不证明 TV 客户端播放正常。
 
@@ -65,4 +65,4 @@
 
 移入回收站后，普通文件详情查询可能返回 `file_not_found`；应通过 `GET /drive/v1/files` 的 `filters={"trashed":{"eq":true}}` 分页按 ID 核对，必要时有界等待列表刷新，不重复删除。收尾核对未选文件未变；仅清理本次任务生成、所有内容均与种子清单吻合的附件/样片目录，不能删除原有系列文件夹。
 
-私有操作证据放 `~/.codex/tools/xunlei-cinema/private/replacements/`，记录旧新 ID、原始链接、原名、目标名、大小、片长、目录、任务结果与回收站状态。用户下次要求更新影片库时，从其中**实际完成并读回的新文件**生成 `--sources` 导入清单；失败候选不写成已使用来源。
+私有操作证据放 `~/.codex/skills/xunlei-cinema/private/replacements/`，记录旧新 ID、原始链接、原名、目标名、大小、片长、目录、任务结果与回收站状态。用户下次要求更新影片库时，从其中**实际完成并读回的新文件**生成 `--sources` 导入清单；失败候选不写成已使用来源。

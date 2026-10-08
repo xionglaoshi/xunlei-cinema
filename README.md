@@ -2,6 +2,6 @@
 
 按片名查找与核验公开片源、比较版本；只有用户要求时保存到迅雷云盘。流程和归档标准见 [SKILL.md](SKILL.md)。
 
-技能仅包含规则与参考文档，不携带环境或工具。运行能力由 Codex 提供；本机辅助工具位于 `~/.codex/tools/xunlei-cinema/`，Python 统一使用 `~/.codex/venv/bin/python3`。依赖、数据位置及第三方来源见 [references/dependencies.md](references/dependencies.md)。浏览器操作优先，缺少 CLI 不阻断网页操作。
+技能目录保存规则、参考文档、辅助脚本和私人数据。脚本共用 Codex 的 `~/.codex/venv/bin/python3`；可重新下载的第三方源码与二进制放在 `~/.codex/tools/xunlei-cinema/`，不携带技能专属环境。
 
-示例：找《黑鹰坠落》的可信 4K 片源，先报告候选，不保存。保存完成后必须回读实际文件与目标目录，再更新私人影片库。私人数据与工具不随技能发布。
+环境与工具重建、依赖验证和私有数据恢复见 [references/dependencies.md](references/dependencies.md)。`private/`、`var/`、`影片库.md` 由 Git 忽略，禁止公开发布。浏览器操作优先，缺少 CLI 不阻断网页操作。

@@ -19,4 +19,4 @@
 
 ## 云端执行
 
-分享转存时给 `cinema_share.py` 的 `--chinese '黑客帝国3.矩阵革命' --english 'The Matrix Revolutions' --year 2003`；系列中文名可由 `cinema_naming.series_chinese_title(系列名, 序号, 副标题)` 生成。已有文件用 `cinema_rename.py <清单>` 先预览，再 `--execute`；按文件 ID、原名、字节数核对，改后读回，保留 `~/.codex/tools/xunlei-cinema/var/` 下的回滚清单。中断时用 `--resume`；云端若拒绝某片名，先缩短有争议的中文副标题，保留可辨认中文名、英文名及年份，不臆测被拦截的具体词。
+分享转存时给 `cinema_share.py` 的 `--chinese '黑客帝国3.矩阵革命' --english 'The Matrix Revolutions' --year 2003`；系列中文名可由 `cinema_naming.series_chinese_title(系列名, 序号, 副标题)` 生成。已有文件用 `cinema_rename.py <清单>` 先预览，再 `--execute`；按文件 ID、原名、字节数核对，改后读回，保留 `~/.codex/skills/xunlei-cinema/var/` 下的回滚清单。中断时用 `--resume`；云端若拒绝某片名，先缩短有争议的中文副标题，保留可辨认中文名、英文名及年份，不臆测被拦截的具体词。
